@@ -5,7 +5,6 @@ import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
-import android.content.res.Resources;
 import android.os.Handler;
 import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
@@ -36,6 +35,7 @@ public class MainActivity extends AppCompatActivity {
 
     SendReceiver sendReceiver;
 
+    //possiveis estados
     static final int STATE_LISTENING = 1;
     static final int STATE_CONNECTING = 2;
     static final int STATE_CONNECTED = 3;
@@ -45,7 +45,7 @@ public class MainActivity extends AppCompatActivity {
     int REQUEST_ENABLE_BLUETOOTH = 1;
 
     private static final String APP_NAME = "BluetoothChat";
-    private static final UUID MY_UUID = UUID.fromString("0f9b5e92-38cf-4733-846c-ed82bfe5f641");
+    private static final UUID MY_UUID = UUID.fromString("0f9b5e92-38cf-4733-846c-ed82bfe5f641"); //gerado automaticamente de um site que tem esse proposito
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,6 +55,7 @@ public class MainActivity extends AppCompatActivity {
         findViewByIds();
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
+        //gera a intençao de utilizar o bluetooth
         if (!bluetoothAdapter.isEnabled()){
             Intent enableIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableIntent, REQUEST_ENABLE_BLUETOOTH);
@@ -64,6 +65,8 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void implementListeners() {
+
+        //aqui vai trabalhar em cima da funcionalidade do botao listar
         btn_listar.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -92,6 +95,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        // conecta em um dos dispositivos da lista
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
@@ -111,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    //cuida de mudar o status dependendo do evento
     Handler handler = new Handler(new Handler.Callback() {
         @Override
         public boolean handleMessage(Message msg) {
@@ -129,15 +134,16 @@ public class MainActivity extends AppCompatActivity {
                     txt_status.setText("Falha na Conexao");
                     break;
                 case STATE_MESSAGE_RECEIVED:
-                    byte[] readBuffer = (byte[]) msg.obj;
-                    String tempMsg = new String(readBuffer, 0, msg.arg1);
-                    txt_exibe.setText(tempMsg);
+                    byte[] readBuffer = (byte[]) msg.obj; //vai ler o buffer pra um array
+                    String tempMsg = new String(readBuffer, 0, msg.arg1); //transformar em string
+                    txt_exibe.setText(tempMsg); //apresentar na tela
                     break;
             }
             return true;
         }
     });
 
+    //associa os botoes com as variaveis
     private void  findViewByIds(){
         btn_encontrar=(Button) findViewById(R.id.btn_encontrar);
         btn_enviar=(Button) findViewById(R.id.btn_enviar);
@@ -148,26 +154,27 @@ public class MainActivity extends AppCompatActivity {
         txt_msgs=(EditText) findViewById(R.id.txt_msgs);
     }
 
+    //essa classe cuida da tarefa do dispositivo como servidor
     private class ServerClass extends Thread{
-        private BluetoothServerSocket serverSocket;
+        private BluetoothServerSocket serverSocket; //eh necessario um BT server socket, responsavel por "ouvir" conexoes
 
         public ServerClass(){
             try {
-                serverSocket = bluetoothAdapter.listenUsingRfcommWithServiceRecord(APP_NAME, MY_UUID);
+                serverSocket = bluetoothAdapter.listenUsingRfcommWithServiceRecord(APP_NAME, MY_UUID); //esse socket leva os parametros nome, e uuid
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
         public void run(){
-            BluetoothSocket socket = null;
+            BluetoothSocket socket = null; //inicializa um BT socket
 
             while (socket == null){
                 try {
                     Message message = Message.obtain();
                     message.what = STATE_CONNECTING;
                     handler.sendMessage(message);
-                    socket = serverSocket.accept();
+                    socket = serverSocket.accept(); //se tiver null, entao esses socket recebe um socket conectado que no caso seria conectado utilizando o BT server
                 } catch (IOException e) {
                     e.printStackTrace();
                     Message message = Message.obtain();
@@ -181,7 +188,7 @@ public class MainActivity extends AppCompatActivity {
                     handler.sendMessage(message);
 
                     sendReceiver = new SendReceiver(socket);
-                    sendReceiver.start();
+                    sendReceiver.start(); //se nao esta null é pq ja esta conectado, entao podemos inicializar a classe que trata de envio e recebimento de msgs
 
                     break;
                 }
@@ -189,14 +196,15 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    //classe que cuida do dispositivo como cliente
     private class ClientClass extends Thread{
-        private BluetoothDevice device;
-        private BluetoothSocket socket;
+        private BluetoothDevice device; //para o lado cliente precisamos de um dispositivo
+        private BluetoothSocket socket; // e um socket
 
         public ClientClass(BluetoothDevice device1){
             device = device1;
             try {
-                socket = device.createRfcommSocketToServiceRecord(MY_UUID);
+                socket = device.createRfcommSocketToServiceRecord(MY_UUID); //na inicializacao desse socket so eh necessario o uuid
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -204,13 +212,13 @@ public class MainActivity extends AppCompatActivity {
 
         public void run(){
             try {
-                socket.connect();
+                socket.connect(); //tenta conectar a um dispositivo
                 Message message = Message.obtain();
                 message.what = STATE_CONNECTED;
                 handler.sendMessage(message);
 
                 sendReceiver = new SendReceiver(socket);
-                sendReceiver.start();
+                sendReceiver.start(); //se obteve sucesso podemos inicializar a classe que trata o envio e recebimento de msgs
             } catch (IOException e) {
                 e.printStackTrace();
                 Message message = Message.obtain();
@@ -220,8 +228,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    //classe que cuida do envio e recebimento de msgs
     private class SendReceiver extends Thread{
-        private final BluetoothSocket bluetoothSocket;
+        private final BluetoothSocket bluetoothSocket; //inicializamos um BT socket para gerenciar a conexao
         private final InputStream inputStream;
         private final OutputStream outputStream;
 
@@ -231,8 +240,8 @@ public class MainActivity extends AppCompatActivity {
             OutputStream tempOut = null;
 
             try {
-                tempIn = bluetoothSocket.getInputStream();
-                tempOut = bluetoothSocket.getOutputStream();
+                tempIn = bluetoothSocket.getInputStream(); //tenta pegar entradas
+                tempOut = bluetoothSocket.getOutputStream(); //tenta pegar saidas
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -245,10 +254,10 @@ public class MainActivity extends AppCompatActivity {
             byte[] buffer = new byte[1024];
             int bytes;
 
-            while (true){
+            while (true){ //enquanto a conexao estiver aberta portanto usamos true
                 try {
-                    bytes = inputStream.read(buffer);
-                    handler.obtainMessage(STATE_MESSAGE_RECEIVED, bytes, -1, buffer).sendToTarget();
+                    bytes = inputStream.read(buffer); //le os bytes do inputstream e guarda no buffer (retorna -1 no final)
+                    handler.obtainMessage(STATE_MESSAGE_RECEIVED, bytes, -1, buffer).sendToTarget(); //le os bytes do objeto buffer ate chegar no -1 (fim) e envia ao handler
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
@@ -257,32 +266,10 @@ public class MainActivity extends AppCompatActivity {
 
         public void write(byte[] bytes){
             try {
-                outputStream.write(bytes);
+                outputStream.write(bytes); //"joga" ou escreve os bytes nesse estream
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 }
